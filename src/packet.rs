@@ -15,9 +15,9 @@ pub struct Packets {
 /* Ideally this would be implemented, but i dont wanna deal with proc macros
     or dirty tricks
 */
-pub struct DeserializedPackets {
-    packets: HashMap<String, Box<dyn Any>>
-}
+// pub struct DeserializedPackets {
+//     packets: HashMap<String, Box<dyn Any>>
+// }
 
 impl Packets {
     pub fn get<T: for<'a> Deserialize<'a>>(&self, key: &str) -> Option<T> {

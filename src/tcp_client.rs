@@ -2,11 +2,7 @@
 use std::{collections::HashMap, net::{Ipv4Addr, SocketAddr}, task};
 use tokio::{io::AsyncWriteExt, net::{TcpListener, TcpSocket, TcpStream}};
 
-use crate::{packet::DeserializedPackets};
-
-pub const NET_BUFFER_SIZE: usize = 1024;
-
-
+use crate::{Packets, NET_BUFFER_SIZE};
 
 /*
 TODO: 
@@ -28,7 +24,7 @@ pub struct TcpClient {
     stream: TcpStream,
     server_addr: SocketAddr,
     buf: [u8; NET_BUFFER_SIZE],
-    packets: HashMap<SocketAddr, DeserializedPackets>, // packets["client1", {["positions"], ..}];
+    packets: HashMap<SocketAddr, Packets>, // packets["client1", {["positions"], ..}];
 }
 
 impl TcpClient {

@@ -3,11 +3,7 @@ use std::{collections::HashMap, net::{Ipv4Addr, SocketAddr}, sync::Arc, task};
 use threadpool::ThreadPool;
 use tokio::net::{TcpSocket, TcpListener, TcpStream};
 
-use crate::{packet::DeserializedPackets, prelude::UdpClient};
-
-pub const NET_BUFFER_SIZE: usize = 1024;
-
-
+use crate::{Packets, NET_BUFFER_SIZE};
 
 /*
 TODO: 
@@ -31,7 +27,7 @@ pub struct TcpServer {
     buf: [u8; NET_BUFFER_SIZE],
     // if this cant be serializable, do vec, and make packet have a name (or type idk)
     clients: Vec<SocketAddr>,
-    packets: HashMap<SocketAddr, DeserializedPackets>, // packets["client1", {["positions"], ..}];
+    packets: HashMap<SocketAddr, Packets>, // packets["client1", {["positions"], ..}];
     pool: ThreadPool,
 }
 

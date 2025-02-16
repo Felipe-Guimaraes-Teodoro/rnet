@@ -1,15 +1,13 @@
-use std::{collections::HashMap, net::{Ipv4Addr, SocketAddr}, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr};
 use tokio::net::UdpSocket;
 
-use crate::packet::{Packet, Packets};
-pub const NET_BUFFER_SIZE: usize = 1024;
+use crate::{Packet, Packets, NET_BUFFER_SIZE};
 
 // I'd tell you a UDP joke... but you might not get it
 
 pub struct UdpClient {
-    id: u32,
     socket: UdpSocket,
-    our_addr: SocketAddr,
+    // our_addr: SocketAddr,
     server_addr: SocketAddr,
     buf: [u8; NET_BUFFER_SIZE],
 
@@ -18,16 +16,16 @@ pub struct UdpClient {
 }
 
 impl UdpClient {
-    pub async fn new(id: u32, server_addr: SocketAddr) -> Self {
-        let our_address = "0.0.0.0:0000".parse::<SocketAddr>().unwrap();
-        let socket: UdpSocket = UdpSocket::bind(our_address).await.unwrap();
+    pub async fn new(client_addr: &str, server_addr: &str) -> Self {
+        let socket: UdpSocket = UdpSocket::bind(client_addr).await.unwrap();
 
         let buf = [0 as u8; NET_BUFFER_SIZE];
         
         Self {
-            id, 
-            socket, our_addr: our_address, 
-            server_addr, buf, 
+            socket, 
+            // our_addr: client_addr.parse::<SocketAddr>().unwrap(), 
+            server_addr: server_addr.parse::<SocketAddr>().unwrap(), 
+            buf, 
             client_packets: Packets {
                 packets: HashMap::new(),
             },

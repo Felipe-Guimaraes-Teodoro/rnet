@@ -1,13 +1,9 @@
 // I'd tell you a UDP joke, but you might not get it...
-use std::{collections::HashMap, net::{Ipv4Addr, SocketAddr}, sync::Arc, task};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::Duration};
 use threadpool::ThreadPool;
 use tokio::{net::UdpSocket, sync::Mutex};
 
-use crate::packet::{DeserializedPackets, Packet, Packets};
-
-pub const NET_BUFFER_SIZE: usize = 1024;
-
-
+use crate::{packet::{Packet, Packets}, NET_BUFFER_SIZE};
 
 /*
 TODO: 
@@ -28,6 +24,10 @@ TODO:
 struct ClientState {
 }
 
+pub struct ServerUpdateInfo {
+    pub tick_time_ms: u64,
+}
+
 pub struct Server {
     socket: Arc<UdpSocket>,
     pub addr: SocketAddr,
@@ -41,8 +41,8 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn new() -> Self {
-        let addr = "127.0.0.1:8080".parse::<SocketAddr>().unwrap();
+    pub async fn new(server_addr: &str) -> Self {
+        let addr = server_addr.parse::<SocketAddr>().unwrap();
         let socket: Arc<UdpSocket> = UdpSocket::bind(addr).await
             .unwrap()
             .into();
@@ -58,30 +58,12 @@ impl Server {
          }
     }
 
-    // todo: add customization to this. eg: tick time, peer limit, etc
-    ///Run the server logic on a separate thread
-    pub fn server_thread(&mut self) {
-        loop {
-            if let Ok((_, addr)) = self.socket.try_recv_from(&mut self.buf) {
-                if self.clients.contains_key(&addr) {
-                    let sock = self.socket.clone();
-                    let packets = self.packets.clone();
-                    let buf = self.buf;
-                    self.pool.execute(move || {
-                        dbg!("Creating client", addr);
-                        Self::handle_client(addr, packets, &buf);
-                    });
-                } else {
-                    self.handle_connection(addr);
-                }
-            }
-        }
-    }
-
-    pub fn update(&mut self) {
+    pub fn update(&mut self, info: &ServerUpdateInfo) {
+        let now = std::time::Instant::now();
+        
         if let Ok((_, addr)) = self.socket.try_recv_from(&mut self.buf) {
             if self.clients.contains_key(&addr) {
-                let sock = self.socket.clone();
+                // let sock = self.socket.clone();
                 let packets = self.packets.clone();
                 let buf = self.buf;
                 self.pool.execute(move || {
@@ -91,12 +73,16 @@ impl Server {
                 self.handle_connection(addr);
             }
         }
+
+        std::thread::sleep(
+            Duration::from_millis(info.tick_time_ms)
+                .saturating_sub(now.elapsed())
+        );
     }
 
     pub fn handle_client(addr: SocketAddr, packets: Arc<Mutex<HashMap<SocketAddr, Packets>>>, buf: &[u8; 1024]) {
         // store packages sent from client to server's packet storage
         if let Ok(mut packets) = packets.try_lock() {
-            dbg!("im doing stuff!!");
             packets.insert(addr, Packet::deserialize(buf));
         }
     }
