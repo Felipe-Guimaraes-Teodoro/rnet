@@ -1,33 +1,17 @@
 // I'd tell you a UDP joke, but you might not get it...
-use std::{collections::HashMap, net::{Ipv4Addr, SocketAddr}, sync::Arc, task};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use threadpool::ThreadPool;
 use tokio::net::{TcpSocket, TcpListener, TcpStream};
 
 use crate::{Packets, NET_BUFFER_SIZE};
 
-/*
-TODO: 
-    server.send_client(client, data)
-    client.send_server(server, data)
-
-    # maybe
-    have everything on a table
-    @server->clients[i]
-    ["player position"] = vec3
-    ["custom client packet"] = CustomPacket
-
-    @client->server_data
-    ["other_player_positions"] = vec![vec3]
-
-*/
 pub struct TcpServer {
     socket: Arc<TcpSocket>,
     pub addr: SocketAddr,
     listener: TcpListener,
     buf: [u8; NET_BUFFER_SIZE],
-    // if this cant be serializable, do vec, and make packet have a name (or type idk)
     clients: Vec<SocketAddr>,
-    packets: HashMap<SocketAddr, Packets>, // packets["client1", {["positions"], ..}];
+    packets: HashMap<SocketAddr, Packets>,
     pool: ThreadPool,
 }
 
@@ -35,7 +19,7 @@ impl TcpServer {
     pub async fn new() -> Self {
         let addr = "127.0.0.1:8080".parse::<SocketAddr>().unwrap();
         let socket: Arc<TcpSocket> = TcpSocket::new_v4().unwrap().into();
-        socket.bind(addr).unwrap();
+        // socket.bind(addr).unwrap();
 
         println!("SERVER: Server listening on {}...", addr);
 
@@ -54,7 +38,7 @@ impl TcpServer {
 
     pub async fn server_loop(&mut self) {
         loop {
-            self.handle_connection();
+            self.handle_connection().await;
         }
     }
 
@@ -63,7 +47,7 @@ impl TcpServer {
             Ok((socket, addr)) => {
                 println!("SERVER: New client {} connected!", addr);
                 self.clients.push(addr);
-                tokio::spawn(handle_client(socket)).await;
+                tokio::spawn(handle_client(socket)).await.unwrap();
             }
             Err(e) => {
                 println!("SERVER: Failed to accept client connection: {}", e);

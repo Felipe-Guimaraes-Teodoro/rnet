@@ -1,30 +1,15 @@
 // I'd tell you a UDP joke, but you might not get it...
-use std::{collections::HashMap, net::{Ipv4Addr, SocketAddr}, task};
-use tokio::{io::AsyncWriteExt, net::{TcpListener, TcpSocket, TcpStream}};
+use std::{collections::HashMap, net::SocketAddr};
+use tokio::{io::AsyncWriteExt, net::{TcpSocket, TcpStream}};
 
 use crate::{Packets, NET_BUFFER_SIZE};
 
-/*
-TODO: 
-    server.send_client(client, data)
-    client.send_server(server, data)
-
-    # maybe
-    have everything on a table
-    @server->clients[i]
-    ["player position"] = vec3
-    ["custom client packet"] = CustomPacket
-
-    @client->server_data
-    ["other_player_positions"] = vec![vec3]
-
-*/
 pub struct TcpClient {
     id: u32,
     stream: TcpStream,
     server_addr: SocketAddr,
     buf: [u8; NET_BUFFER_SIZE],
-    packets: HashMap<SocketAddr, Packets>, // packets["client1", {["positions"], ..}];
+    packets: HashMap<SocketAddr, Packets>,
 }
 
 impl TcpClient {
@@ -43,39 +28,35 @@ impl TcpClient {
         }
     }
 
-    pub async fn send_msg(&mut self, msg: &str){
-        loop{
-            self.stream.writable().await.unwrap();
+    pub async fn send_packet(&mut self, msg: &str){
+        self.stream.writable().await.unwrap();
 
-            match self.stream.try_write(msg.as_bytes()) {
-                Ok(_) => {
-                    println!("CLIENT: Sent {} to {:?}", msg, self.server_addr);
-                }
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    continue;
-                }
-                Err(e) => {
-                    println!("CLIENT: Failed to write to {:?}: {}", self.server_addr, e)
-                }
+        match self.stream.try_write(msg.as_bytes()) {
+            Ok(_) => {
+                println!("CLIENT: Sent {} to {:?}", msg, self.server_addr);
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                eprintln!("couldnt");
+            }
+            Err(e) => {
+                println!("CLIENT: Failed to write to {:?}: {}", self.server_addr, e)
             }
         }
     }
 
-    pub async fn listen(&mut self){
-        loop{
-            self.stream.readable().await.unwrap();
+    pub async fn update(&mut self){
+        self.stream.readable().await.unwrap();
 
-            match self.stream.try_read(&mut self.buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    println!("CLIENT: Read {} bytes!", n);
-                }
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    continue;
-                }
-                Err(e) => {
-                    println!("CLIENT: Failed to read from {:?}: {}", self.server_addr, e)
-                }
+        match self.stream.try_read(&mut self.buf) {
+            Ok(0) => return,
+            Ok(n) => {
+                println!("CLIENT: Read {} bytes!", n);
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                // noop
+            }
+            Err(e) => {
+                println!("CLIENT: Failed to read from {:?}: {}", self.server_addr, e)
             }
         }
     }

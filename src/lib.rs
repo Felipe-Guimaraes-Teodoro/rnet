@@ -18,15 +18,16 @@ pub async fn test_server_udp() {
     println!("Initiated server!");
 
     let server = Arc::new(Mutex::new(Server::new("127.0.0.1:8080").await));
-    let info = &ServerUpdateInfo {
+    let info = ServerUpdateInfo {
         tick_time_ms: 1,
+        ..Default::default()
     };
 
     let server_clone = server.clone();
     task::spawn(async move {
         loop {
             let mut server_lock = server_clone.lock().await;
-            server_lock.update(info);
+            server_lock.update(&info);
         }
     });
     
@@ -70,13 +71,13 @@ pub async fn test_server_tcp() {
 }
 
 pub async fn test_client_tcp() {
-    let server_addr = "127.0.0.2:8080".parse::<SocketAddr>().unwrap();
+    let server_addr = "127.0.0.1:8080".parse::<SocketAddr>().unwrap();
 
     let mut client = TcpClient::new(0, server_addr).await;
     
     loop {
-        client.listen().await;
-        client.send_msg("HI!!!!!!").await;
+        client.send_packet("HI!!!!!!").await;
+        client.update().await;
     }
 
     // client.disconnect().await;
