@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 pub use prelude::*;
 pub use tokio::*;
@@ -9,37 +9,42 @@ pub mod udp_server;
 pub mod packet;
 pub mod tcp_server;
 pub mod tcp_client;
+pub mod gui;
 
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 pub const NET_BUFFER_SIZE: usize = 1024;
 
 pub async fn test_server_udp() {
     println!("Initiated server!");
 
-    let server = Arc::new(Mutex::new(Server::new("127.0.0.1:8080").await));
+    let server = Arc::new(RwLock::new(Server::new("127.0.0.1:8080").await));
+
     let info = ServerUpdateInfo {
-        tick_time_ms: 1,
+        tick_time_ms: 0,
+        queue_task_amm: 4,
+        concurrent_capacity: 4,
+        pool_thd_count: 4,
+        max_queue_len: 4,
         ..Default::default()
     };
 
     let server_clone = server.clone();
     task::spawn(async move {
         loop {
-            let mut server_lock = server_clone.lock().await;
-            server_lock.update(&info);
+            if let Ok(mut server) = server_clone.try_write() {
+                server.send_packets_to_all_connected("y", Packet::new(13));
+                server.update(&info);
+            }
+
+            tokio::time::sleep(Duration::from_millis(16))
+                .await;
         }
     });
-    
 
-    let mut val = 0;
-    loop {
-        if let Ok(mut server) = server.try_lock() {
-            server.send_packets_to_all_connected("y", Packet::new(val));
-
-            val+=1;
-        }
-    }
+    // gui feature
+    let server_clone = server.clone();
+    gui::server_window(server_clone).unwrap();
 }
 
 pub async fn test_client_udp() {
@@ -50,17 +55,14 @@ pub async fn test_client_udp() {
     
     let mut i = 0;
     loop {
-        
-        if client.server_packets.packets.len() == 0 {
-            if i % 500 == 0 {
-                client.send_packet("greet", Packet::new("hi"));
-            }
-        }
-
-        println!("{:?}", client.server_packets.get::<i32>("y").unwrap_or_default());
+        println!("{:?}", client.get::<i32>("y").unwrap_or_default());
+        client.send_packet("greet", Packet::new("hi"));
 
         client.update();
         i+=1;
+
+        tokio::time::sleep(Duration::from_millis(16))
+            .await;
     }
 }
 

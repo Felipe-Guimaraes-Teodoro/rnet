@@ -18,4 +18,6 @@ async fn main() {
             test_client_tcp().await;
         }
     }
+
+    loop {}
 }

@@ -1,4 +1,5 @@
 use std::{collections::HashMap, net::SocketAddr};
+use serde::Deserialize;
 use tokio::net::UdpSocket;
 
 use crate::{Packet, Packets, NET_BUFFER_SIZE};
@@ -51,5 +52,9 @@ impl UdpClient {
         self.client_packets.packets.insert(packet_name.to_owned(), packet);
 
         self.socket.try_send_to(&self.client_packets.serialize(), self.server_addr).ok();
+    }
+
+    pub fn get<T: for<'a> Deserialize<'a>>(&mut self, packet_name: &str) -> Option<T> {
+        self.server_packets.get::<T>(packet_name)
     }
 }

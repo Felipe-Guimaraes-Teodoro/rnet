@@ -1,4 +1,3 @@
-// I'd tell you a UDP joke, but you might not get it...
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use threadpool::ThreadPool;
 use tokio::net::{TcpSocket, TcpListener, TcpStream};
@@ -67,7 +66,12 @@ async fn handle_client(socket: TcpStream) {
                 println!("SERVER: Client {} disconnected!", addr);
             }
             Ok(n) => {
-                println!("SERVER: Read {} bytes!", n);
+                if let Ok(msg) = std::str::from_utf8(&buf[0..n]){
+                    println!("CLIENT: Read \"{}\"!", msg);
+                }
+                else{
+                    eprint!("CLIENT: Failed to convert bytes to message: {}", n);
+                }
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 continue;

@@ -2,12 +2,12 @@ use std::{/* any::Any, */collections::HashMap};
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Packet {
     pub data: Vec<u8>,
 }
 
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct Packets {
     pub packets: HashMap<String, Packet>,
 }
