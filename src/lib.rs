@@ -22,10 +22,10 @@ pub async fn test_server_udp() {
 
     let info = ServerUpdateInfo {
         tick_time_ms: 0,
-        queue_task_amm: 4,
-        concurrent_capacity: 4,
+        queue_task_amm: 2,
+        concurrent_capacity: 50,
         pool_thd_count: 4,
-        max_queue_len: 4,
+        max_queue_len: 5,
         ..Default::default()
     };
 
@@ -33,7 +33,7 @@ pub async fn test_server_udp() {
     task::spawn(async move {
         loop {
             if let Ok(mut server) = server_clone.try_write() {
-                server.send_packets_to_all_connected("y", Packet::new(13));
+                server.send_packets_to_all_connected("y", packet!(13));
                 server.update(&info);
             }
 
@@ -56,7 +56,7 @@ pub async fn test_client_udp() {
     let mut i = 0;
     loop {
         println!("{:?}", client.get::<i32>("y").unwrap_or_default());
-        client.send_packet("greet", Packet::new("hi"));
+        client.send_packet("greet", packet!("hi"));
 
         client.update();
         i+=1;
@@ -65,6 +65,15 @@ pub async fn test_client_udp() {
             .await;
     }
 }
+
+pub async fn test_many_client_udp() {
+    for i in 0..20 {
+        tokio::task::spawn(async move {        
+            test_client_udp().await;
+        });
+    }
+}
+
 
 
 pub async fn test_server_tcp() {

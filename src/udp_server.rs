@@ -26,7 +26,8 @@ pub enum ServerCommand {
 
 pub struct Server {
     pub socket: Arc<UdpSocket>,
-    pub packets: Arc<Mutex<HashMap<SocketAddr, Packets>>>, 
+    pub client_packets: Arc<Mutex<HashMap<SocketAddr, Packets>>>, 
+    pub server_packets: Arc<Mutex<Packets>>, 
     pub addr: SocketAddr,
     pub buf: [u8; NET_BUFFER_SIZE],
     pub clients: HashMap<SocketAddr, ClientState>,
@@ -51,12 +52,13 @@ impl Server {
             .into();
         
         let server = Self { 
+            server_packets: Arc::new(Mutex::new(Packets::default())),
             pool: ThreadPool::new(4),
             socket,
             addr,
             buf: [0; NET_BUFFER_SIZE],
             clients: HashMap::new(),
-            packets: Arc::new(Mutex::new(HashMap::new())),
+            client_packets: Arc::new(Mutex::new(HashMap::new())),
             count: 0,
             queue: VecDeque::new(),
          };
@@ -72,11 +74,11 @@ impl Server {
         for _ in 0..info.concurrent_capacity {
             if let Ok((_, addr)) = self.socket.try_recv_from(&mut self.buf) {
                 if self.clients.contains_key(&addr) {
-                    let packets = self.packets.clone();
+                    let client_packets = self.client_packets.clone();
                     let buf = self.buf;
     
                     self.pool.execute(move || {
-                        Self::handle_client(addr, packets, &buf);
+                        Self::handle_client(addr, client_packets, &buf);
                     });
                 } else {
                     self.handle_connection(addr);
@@ -93,9 +95,9 @@ impl Server {
         );
     }
 
-    pub fn handle_client(addr: SocketAddr, packets: Arc<Mutex<HashMap<SocketAddr, Packets>>>, buf: &[u8; 1024]) {
+    pub fn handle_client(addr: SocketAddr, client_packets: Arc<Mutex<HashMap<SocketAddr, Packets>>>, buf: &[u8; NET_BUFFER_SIZE]) {
         // store packages sent from client to server's packet storage
-        if let Ok(mut packets) = packets.try_lock() {
+        if let Ok(mut packets) = client_packets.try_lock() {
             packets.insert(addr, Packet::deserialize(buf));
         }
     }
@@ -111,12 +113,17 @@ impl Server {
     pub fn handle_connection(&mut self, addr: SocketAddr) {
         self.clients.insert(addr, ClientState::default());
         dbg!("A client connected!;");
-        if let Ok(mut packets) = self.packets.try_lock() {
+        if let Ok(mut packets) = self.client_packets.try_lock() {
             packets.insert(addr, Packets {
                 packets: HashMap::new(),
             });
         }
         self.count+=1;
+    }
+
+    pub fn handle_disconnection(&mut self, addr: SocketAddr) {
+        // remove all packets related to this client
+        // remove all client info related to this client
     }
 
     pub fn handle_queue(&mut self, info: &ServerUpdateInfo) {
@@ -125,18 +132,31 @@ impl Server {
                 match command {
                     ServerCommand::Send(addr, name, packet) => {
                         let socket = self.socket.clone();
-                        let packets = self.packets.clone();
+                        let server_packets = self.server_packets.clone();
 
                         self.pool.execute(move || {
-                            ServerCommand::send(socket, packets, addr, name, packet);
+                            ServerCommand::send(
+                                socket, 
+                                server_packets, 
+                                addr, 
+                                name, 
+                                packet
+                            );
                         });
                     }
                     ServerCommand::SendAll(name, packet) => {
                         let socket = self.socket.clone();
-                        let packets = self.packets.clone();
+                        let server_packets = self.server_packets.clone();
+                        let client_packets = self.client_packets.clone();
 
                         self.pool.execute(move || {
-                            ServerCommand::send_all(socket, packets, name, packet);
+                            ServerCommand::send_all(
+                                socket, 
+                                client_packets,
+                                server_packets, 
+                                name, 
+                                packet
+                            );
                         });
                     }
                 }
@@ -152,30 +172,31 @@ impl Server {
 impl ServerCommand {
     fn send(
         socket: Arc<UdpSocket>,
-        packets: Arc<Mutex<HashMap<SocketAddr, Packets>>>,
+        server_packets: Arc<Mutex<Packets>>,
         addr: SocketAddr, 
         name: String, 
         packet: Packet
     ) {
-        if let Ok(mut packets) = packets.try_lock() {
-            if let Some(ref mut client_packets) = packets.get_mut(&addr) {
-                client_packets.packets.insert(name, packet);
-                socket.try_send_to(&client_packets.serialize(), addr).ok();
-            }
+        if let Ok(mut packets) = server_packets.try_lock() {
+            packets.packets.insert(name, packet);
+            socket.try_send_to(&packets.serialize(), addr).ok();
         }
     }
 
     fn send_all(
         socket: Arc<UdpSocket>,
-        packets: Arc<Mutex<HashMap<SocketAddr, Packets>>>,
+        clients: Arc<Mutex<HashMap<SocketAddr, Packets>>>,
+        server_packets: Arc<Mutex<Packets>>,
         name: String, 
         packet: Packet
     ) {
-        if let Ok(mut packets) = packets.try_lock() {
-            for (addr, client_packets) in packets.iter_mut() {
-                client_packets.packets.insert(name.to_owned(), packet.clone());
-
-                socket.try_send_to(&client_packets.serialize(), *addr).ok();
+        if let Ok(mut packets) = server_packets.try_lock() {
+            if let Ok(clients) = clients.try_lock() {
+                for addr in clients.keys() {
+                    packets.packets.insert(name.to_owned(), packet.clone());
+                    
+                    socket.try_send_to(&packets.serialize(), *addr).ok();
+                }
             }
         }
     }

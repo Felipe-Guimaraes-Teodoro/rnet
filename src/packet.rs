@@ -52,3 +52,15 @@ impl Packet {
             .unwrap()
     }
 }
+
+///Expands to: 
+/// 
+/// ```
+/// Packet::new(value)
+/// ```
+#[macro_export]
+macro_rules! packet {
+    ($value: expr) => {
+        Packet::new($value)
+    };
+}
